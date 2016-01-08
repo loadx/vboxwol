@@ -1,0 +1,96 @@
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"net"
+	"os"
+)
+
+/* A Simple function to verify error */
+func CheckError(err error) {
+	if err != nil {
+		fmt.Println("Error: ", err)
+		os.Exit(0)
+	}
+}
+
+func main() {
+
+	/* Lets prepare a address at any address at port 10001*/
+	ServerAddr, err := net.ResolveUDPAddr("udp", ":9")
+	CheckError(err)
+
+	/* Now listen at selected port */
+	ServerConn, err := net.ListenUDP("udp", ServerAddr)
+	CheckError(err)
+	defer ServerConn.Close()
+
+	fmt.Println("listening on ", ServerAddr)
+
+	buf := make([]byte, 1024)
+
+	for {
+		_, _, err := ServerConn.ReadFromUDP(buf)
+		magicHeader := []byte{255, 255, 255, 255, 255, 255}
+		if !bytes.Equal(buf[0:6], magicHeader) {
+			continue
+		}
+
+		MAC_LENGTH := 6
+		splitMAC := bytes.Split(buf, magicHeader)
+		MAC := splitMAC[1][0:MAC_LENGTH]
+		MACRepeat := bytes.SplitAfter(splitMAC[1], MAC)
+
+		foundMAC := false
+		for i := 0; i <= 16; i += MAC_LENGTH {
+			if bytes.Equal(MACRepeat[i], MAC) {
+				foundMAC = true
+			}
+		}
+
+		fmt.Println(foundMAC)
+
+		// reader := bufio.NewScanner(bytes.NewReader(buf))
+
+		// thing, _ := reader.ReadByte()
+
+		if err != nil {
+			fmt.Println("Error: ", err)
+		}
+	}
+}
+
+func isWOL([]byte buf) {
+	MAGIC_HEADER := []byte{255, 255, 255, 255, 255, 255}
+	MAC_LENGTH := 6
+
+	// no magic header, bail early
+	if !bytes.Equal(buf[0:6], MAGIC_HEADER) {
+		continue
+	}
+
+	// format of a WOL packet is
+	//
+	// --------------------------------
+	// | MISC (X Bytes >= 0)          |
+	// --------------------------------
+	// | MAGIC HEADER (FF..FF 6 bytes)|
+	// --------------------------------
+	// | MAC/DEST * 16                |
+	// --------------------------------
+	//	Total: 104 bytes
+	//
+	splitMAC := bytes.Split(buf, MAGIC_HEADER)
+	MAC := splitMAC[1][0:MAC_LENGTH]
+	MACRepeat := bytes.SplitAfter(splitMAC[1], MAC)
+
+	foundMAC := false
+	for i := 0; i <= 16; i += MAC_LENGTH {
+		if bytes.Equal(MACRepeat[i], MAC) {
+			foundMAC = true
+		}
+	}
+
+	return foundMAC
+}
