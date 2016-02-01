@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
-)
 
-import "./vmwol"
+	"./vmwol"
+)
 
 func checkError(err error) {
 	if err != nil {
@@ -15,10 +15,13 @@ func checkError(err error) {
 
 func main() {
 	vbox := vmwol.NewVirtualBoxProvider()
-	fmt.Println(vbox.GetInventory())
-	fmt.Println(vbox.GetInventory())
-	vbox.ResetInventory()
-	fmt.Println(vbox.GetInventory())
+	fmt.Printf("%#v", vbox.GetInventory())
+
+	// vmware := vmwol.NewVmwareProvider()
+	// fmt.Printf("%#v", vmware.GetInventory())
+
+	// fmt.Println(vbox.GetInventory())
+	// vbox.ResetInventory()
 
 	// p.BuildInventory()
 	// fmt.Println(p.GetInventory())

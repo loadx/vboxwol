@@ -12,17 +12,22 @@ type GenericVM struct {
 }
 
 type GenericVMProvider struct {
-	inventory  []string
+	inventory  map[string]GenericVM
 	clearCache bool
 	binary     string
 }
 
 type VMProvider interface {
-	BuildInventory() error
-	GetInventory() []string
+	GetInventory() []GenericVM
 	// wakeVMByName(string) (bool, error)
 	// WakeVMByMac(string) (bool, error)
 	// WakeVMById(string) (bool, error)
+}
+
+func checkError(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func DiscoverProviders() {
@@ -43,9 +48,7 @@ func binaryIsUsable(binaryPath string) bool {
 
 func (provider *GenericVMProvider) SetBinaryPath(overridePath string) {
 	if binaryIsUsable(overridePath) {
-		provider = &GenericVMProvider{
-			binary: overridePath,
-		}
+		provider.binary = overridePath
 	} else {
 		errMsg := fmt.Sprintf("Unable to use binary '%s'. Ensure this exists and is executable.", overridePath)
 		log.Fatal(errMsg)
@@ -53,14 +56,21 @@ func (provider *GenericVMProvider) SetBinaryPath(overridePath string) {
 }
 
 // func (p *GenericVMProvider) GetInventory() (res []string) {
-// 	// will return cached inventory
-// 	if len(p.inventory) == 0 {
-// 		p.BuildInventory()
-// 	}
-// 	return p.inventory
+//  // will return cached inventory
+//  if len(p.inventory) == 0 {
+//    p.BuildInventory()
+//  }
+//  return p.inventory
 // }
 
-func (p *GenericVMProvider) ResetInventory() {
-	p.clearCache = true
-	p.inventory = make([]string, 0)
+// func (p *GenericVMProvider) ResetInventory() {
+// 	p.clearCache = true
+// 	p.inventory = make([]string, 0)
+// }
+
+func (p GenericVMProvider) RunCommand(args ...string) []byte {
+	out, err := exec.Command(p.binary, args...).Output()
+	checkError(err)
+
+	return out
 }

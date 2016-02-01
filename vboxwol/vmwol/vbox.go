@@ -1,8 +1,13 @@
 package vmwol
 
-import "fmt"
+import (
+	"bufio"
+	"bytes"
+	"regexp"
+	"strings"
+)
 
-var binaryPath = "VBoxManage"
+var virtualbox_binary_path = "VBoxManage"
 
 type VirtualBoxVM struct {
 	GenericVM
@@ -15,60 +20,46 @@ type VirtualBoxProvider struct {
 
 func NewVirtualBoxProvider() *VirtualBoxProvider {
 	provider := &VirtualBoxProvider{}
-	provider.SetBinaryPath(binaryPath)
-	provider.BuildInventory()
+	provider.SetBinaryPath(virtualbox_binary_path)
+	provider.GetInventory()
 
 	return provider
 }
 
-func (provider *VirtualBoxProvider) GetInventory() []string {
-	if len(provider.inventory) == 0 && provider.clearCache == true {
-		provider.BuildInventory()
+func (provider *VirtualBoxProvider) GetInventory() []VirtualBoxVM {
+	boxes := make([]VirtualBoxVM, 0)
+
+	// get a list of all virtual machines in virtualbox
+	out := provider.RunCommand("list", "vms")
+	machines := strings.Split(string(out), "\n")
+	boxRegex := regexp.MustCompile("^\"([a-zA-Z]+)\"")
+	idRegex := regexp.MustCompile("\\{(\\w+-\\w+-+\\w+-\\w+-\\w+)\\}")
+
+	// loop through and build a box struct for each machine
+	for _, data := range machines {
+		if data != "" {
+			// fill in the known box information
+			box := VirtualBoxVM{
+				GenericVM: GenericVM{
+					name: boxRegex.FindStringSubmatch(data)[0],
+				},
+				id: idRegex.FindStringSubmatch(data)[0],
+			}
+
+			// now fetch the MAC address and update the box information
+			out := provider.RunCommand("showvminfo", box.id)
+			scanner := bufio.NewScanner(bytes.NewReader(out))
+			regexMac := regexp.MustCompile("MAC: [0-9A-F-a-f]{12}")
+			for scanner.Scan() {
+				found := regexMac.FindStringSubmatch(scanner.Text())
+				if len(found) > 0 {
+					box.mac = found[0]
+				}
+			}
+
+			boxes = append(boxes, box)
+		}
 	}
 
-	return provider.inventory
-}
-
-// VIRTUALBOX
-func (provider *VirtualBoxProvider) BuildInventory() error {
-	// boxes := make([]VirtualBoxVM, 0)
-	// out, err := exec.Command("VBoxManage", "list", "vms").Output()
-	// if err != nil {
-	//   log.Fatal(err)
-	// }
-
-	// machines := strings.Split(string(out), "\n")
-	// boxRegex := regexp.MustCompile("^\"([a-zA-Z]+)\"")
-	// idRegex := regexp.MustCompile("\\{(\\w+-\\w+-+\\w+-\\w+-\\w+)\\}")
-	// for index, data := range machines {
-	//   if data != "" {
-	//     boxes = append(boxes, GenericVM{
-	//       name: boxRegex.FindStringSubmatch(data)[0],
-	//     })
-
-	//     boxes[index].id = idRegex.FindStringSubmatch(data)[0]
-	//   }
-	// }
-
-	// for index, box := range boxes {
-	//   out, err := exec.Command("VBoxManage", "showvminfo", box.id).Output()
-
-	//   if err != nil {
-	//     log.Fatal(err)
-	//   }
-
-	//   scanner := bufio.NewScanner(bytes.NewReader(out))
-	//   regexMac := regexp.MustCompile("MAC: (0-9A-F-a-f{12})")
-	//   for scanner.Scan() {
-	//     found := regexMac.FindStringSubmatch(scanner.Text())
-	//     if len(found) > 0 {
-	//       boxes[index].mac = found[1]
-	//     }
-	//   }
-	// }
-
-	fmt.Println("len", len(provider.inventory))
-	provider.inventory = []string{"not", "cached", "now"}
-
-	return nil
+	return boxes
 }
